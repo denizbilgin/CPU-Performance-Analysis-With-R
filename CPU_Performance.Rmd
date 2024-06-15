@@ -1,0 +1,465 @@
+---
+title: "CPU Performance Statistics Final"
+author: "Deniz Bilgin"
+date: "2024-06-05"
+output: html_document
+---
+
+## 1. Data:
+**
+Please find your original dataset or datasets; and describe your data in the first step.
+**
+<br>
+
+I found the data set called **CPU Performance** from the **WOLFRAM DATA REPOSITORY** site. The content of the data, as the name suggests, is related to the performance of different CPUs and is in **CSV** format. The data contains a total of **209 rows** and **10 columns**. Link of the dataset is: https://datarepository.wolframcloud.com/resources/Sample-Data-CPU-Performance/
+
+<br>
+Head (first 6 row) of the raw data is like that:
+```{r}
+data = read.csv("./Sample-Data-CPU-Performance.csv")
+head(data)
+```
+<br>
+
+## 2. Exploratory and descriptive data analysis:
+**
+Use “Exploratory and descriptive data analysis”. Talk about your categorical and quantitative data or your ordinal variables etc.
+**
+<br>
+
+The data is **raw** right now, I need to process the data a little and make it ready for statistical processes and tests.
+<br>
+
+I have coded a **preprocesser function** for numerical columns.
+```{r}
+preprocess_numeric_column <- function(data, column_name, unit_short_name) {
+  data[[column_name]] <- as.numeric(gsub("Quantity\\[(\\d+), .*\\]", "\\1", data[[column_name]]))
+  names(data)[names(data) == column_name] <- paste(column_name, " (", unit_short_name, ")", sep ="")
+  return(data)
+}
+```
+<br>
+
+Now, I can use the preprocesser function.
+```{r}
+data <- preprocess_numeric_column(data, "CycleTime", "ns")
+data <- preprocess_numeric_column(data, "MinimumMainMemory", "kB")
+data <- preprocess_numeric_column(data, "MaximumMainMemory", "kB")
+data <- preprocess_numeric_column(data, "CacheSize", "kB")
+
+head(data)
+```
+<br>
+
+Before the seeing the summary, I have to see the **value counts** of the Manufacturer column:
+```{r}
+manufacturer_counts <- table(data$Manufacturer)
+manufacturer_counts
+```
+<br>
+
+Let's look at the **summary** of the data to recognize what type the columns are. The summary of the data tells us most of the required things for this question.
+```{r echo = FALSE}
+summary(data)
+```
+
+As you can see there are **1 categorical** columns, **8 numeric** columns, **1 string** columns and there are no boolean columns.
+When I examine the summary of the data after data preprocessing, I can access a lot of information about the data (Column types, mean values, quartiles and so on).
+With this part, I made the data set ready for statistical tests and observations, that is, I went through a **data preprocessing** stage. 
+<br>
+<br>
+
+## 3. Data Visualization:
+**
+Use 2 useful, meaningful and different “data visualization techniques” which will help
+you understand your data further (distribution, outliers, variability, etc). And use
+another 2 visualizations to compare two groups (like female/male; smoker/nonsmoker etc).
+**
+<br>
+
+First of all, let's examine a numeric column that called Published Performance.
+```{r echo = FALSE}
+hist(data$PublishedPerformance, col="lightblue", main="Published Performance", xlab="Published Performance")
+```
+
+In this visualization, I can clearly see there is some outliers. More, the column has the shape of right skewed.In the column values; min is 6, mean is 50 (there are so much data around 50) and max is 1150.
+<br>
+<br>
+
+Since there are many numeric type columns in the data, let's examine this column with a pie chart, which is the categorical Manufacturer column, instead of visualizing other numeric types again.
+```{r echo = FALSE}
+pie(manufacturer_counts, labels=names(manufacturer_counts), cex=0.5)
+```
+
+There are **32** different Manufacturers. The most common manufacturer is IBM, and second one is NAS.
+<br>
+<br>
+
+Now, I can continue with the second part of the question.
+Firstly, I'll compare Maximum Number of Channels of IBM and NAS. I'll separate the column as 3 segments. Segments are **x<9**, **9<x<19** and **19<x**.
+```{r}
+data_ibm <- subset(data, Manufacturer == "IBM")
+data_nas <- subset(data, Manufacturer == "NAS")
+
+count_ibm_segment1 <- length(data_ibm$MaximumNumberOfChannels[data_ibm$MaximumNumberOfChannels < 9])
+count_ibm_segment2 <- length(data_ibm$MaximumNumberOfChannels[data_ibm$MaximumNumberOfChannels >= 9 & data_ibm$MaximumNumberOfChannels < 19])
+count_ibm_segment3 <- length(data_ibm$MaximumNumberOfChannels[data_ibm$MaximumNumberOfChannels >= 19])
+
+count_nas_segment1 <- length(data_nas$MaximumNumberOfChannels[data_nas$MaximumNumberOfChannels < 9])
+count_nas_segment2 <- length(data_nas$MaximumNumberOfChannels[data_nas$MaximumNumberOfChannels >= 9 & data_nas$MaximumNumberOfChannels < 19])
+count_nas_segment3 <- length(data_nas$MaximumNumberOfChannels[data_nas$MaximumNumberOfChannels >= 19])
+
+segments <- data.frame(
+  Manufacturer = rep(c("IBM", "NAS"), each = 3),
+  Segment = rep(c("x < 9", "9 < x < 19", "19 < x"), 2),
+  Count = c(count_ibm_segment1, count_ibm_segment2, count_ibm_segment3, count_nas_segment1, count_nas_segment2, count_nas_segment3)
+)
+
+library(ggplot2)
+ggplot(segments, aes(x = Segment, y = Count, fill = Manufacturer)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("lightblue", "pink")) +
+  labs(title = "Segments of MaximumNumberOfChannels (IBM & NAS)", x = "Segments", y = "Count") +
+  theme_minimal()
+```
+
+When I examine this graph, I can see that IBM devices have more channels when the maximum number of channels is 19, and when we reach values greater than 19, NAS has more channels.
+<br>
+<br>
+
+Now, I thought that I can compare IBM and NAS manufacturers by their estimated performance. I'll use box plot to see and compare 5 number summary of them.
+```{r}
+combined_ibm_nas_data <- rbind(data_ibm, data_nas)
+combined_ibm_nas_data$Manufacturer <- factor(combined_ibm_nas_data$Manufacturer)
+
+ggplot(combined_ibm_nas_data, aes(x = Manufacturer, y = EstimatedPerformance, fill = Manufacturer)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("lightblue", "pink")) +
+  labs(title = "Comparing EstimatedPerformance of IBM and NAS", x = "Manufacturer", y = "EstimatedPerformance") +
+  theme_minimal()
+```
+
+I visualized the data in the EstimatedPerformance columns of the two companies that produce the most CPUs using a box plot. From this visualization it is clear that the expectation for the **average IBM device is much lower than for the average NAS device**. While IBM has plenty of outliers, NAS doesn't seem to have that many. Both distributions show a **skewed** feature, but IBM's distribution has a higher skew.
+<br>
+<br>
+
+## 4. Confidence Intervals:
+**
+Build ‘2 Confidence Intervals’ step by step.
+**
+<br>
+<br>
+
+Firstly, I'll calculate the confidence interval for CycleTime. Now, I'll calculate the mean of the CycleTime column. The mean will help me to find confidence interval's upper and lower points.
+```{r}
+mean_cycle_time <- mean(data$CycleTime)
+mean_cycle_time
+```
+Then, I have to calculate standard deviation and length of the CycleTime column.These calculations will help me to find standard error of the column. The formula of calculating standard error is **$\sigma$/sqrt(n)**.
+```{r}
+sd_cycle_time <- sd(data$CycleTime)   
+n <- length(data$CycleTime)           
+standard_error_cycle_time <- sd_cycle_time / sqrt(n)
+standard_error_cycle_time
+```
+I'll choose **95%** for the confidence interval, so the **z-value is 1.96**. Now, I will calculate upper and lower limits of %95 confidence interval by using z-value and standard error.
+```{r}
+z_value_95 <- 1.96
+conf_int_lower_cycle_time <- mean_cycle_time - (z_value_95 * standard_error_cycle_time)
+conf_int_upper_cycle_time <- mean_cycle_time + (z_value_95 * standard_error_cycle_time)
+conf_int_cycle_time <- c(conf_int_lower_cycle_time, conf_int_upper_cycle_time)
+conf_int_cycle_time
+```
+If the 95% confidence interval is [168.5376 239.1084] ns, this indicates that there is a **95% probability** that the true CycleTime mean is in this range.
+<br>
+<br>
+
+In this time I'll calculate the confidence intervar for CacheSize column. The steps are same as previous. I'll calculate mean of the column to find the last equation.
+```{r}
+mean_cache_size <- mean(data$CacheSize)
+mean_cache_size
+```
+Then, I'll calculate standard deviation and length of the CacheSize column again. Variable n will be same, so I do not need to calculate it.
+```{r}
+sd_cache_size <- sd(data$CacheSize)   
+standard_error_cache_size <- sd_cache_size / sqrt(n)
+standard_error_cache_size
+```
+Now, I have chosen the **99%** confidence interval and z-value will be **2.58**. Let's calculate upper and lower limits again.
+```{r}
+z_value_99 <- 2.58
+conf_int_lower_cache_size <- mean_cache_size - (z_value_99 * standard_error_cache_size)
+conf_int_upper_cache_size <- mean_cache_size + (z_value_99 * standard_error_cache_size)
+conf_int_cache_size <- c(conf_int_lower_cache_size, conf_int_upper_cache_size)
+conf_int_cache_size
+```
+If the 99% confidence interval is [17.95505 32.45644] kB, this indicates that there is a **99% probability** that the true CacheSize mean is in this range.
+<br>
+<br>
+
+## 5. Transformation:
+**
+Implement one transformation (log transformation, Box-Cok transformation, etc) for one of your quantitative variables, which is not normally distributed; but will be normal or more normal, after the transformation.
+**
+<br>
+<br>
+
+In the 3rd part of the paper, there is a PublishedPerformance column's histogram. As you can see there this graph is highly skewed. So, I can take **log** of the Published Performance column to reach **normal distribution**.
+```{r}
+published_performance_log <- log(data$PublishedPerformance + 1)
+hist(published_performance_log, col="lightblue", main="Log of Published Performance", xlab="Published Performance")
+```
+
+With log using the Published Performance column look like a bit **skewed normal distribution** after transformation. By bringing the data to this state (bringing it closer to normal distribution), we can both facilitate the application of statistical tests and get more balanced results.
+<br>
+<br>
+
+## 6. T-test (Welch t-test or Wilcoxon rank-sum test or Paired t-test)
+**
+Implement a single t-test for one of your “normally or not-normally distributed” variable:
+**
+<br>
+**a. Aim** <br>
+In words, what is your objective here?<br>
+**b. Hypothesis and level of significance:** <br>
+Write your hypothesis in scientific form and determine the level of significance. <br>
+**c. Which test you choose** <br>
+Is your data independent or dependent?<br>
+Tell why you chose this test.<br>
+**d. Assumption Check :** <br>
+Check the required assumptions statistically. <br>
+**e. Result:** <br>
+Give the output of the test and then write down the result.<br>
+**f. Conclusion:** <br>
+You got your result in item e. Write down the conclusion of your result, in such a way that, the reader who doesn’t know any statistics can understand your findings.<br>
+**g. What can be Type-1 and Type-2 error here? Not definition! Tell these situations in terms of your data.** <br>
+<br>
+<br>
+
+**a)** <br>
+I will apply **t-test** on MaximumMainMemory column. My aim is to test whether the mean of the Maximum Main Memory variable is different from **12000 kB**.
+<br>
+<br>
+**b)** <br>
+H0 (The Null Hypothesis): $\mu$ = 12000 kB <br>
+H1 (The Alternative Hypothesis): $\mu$ ≠ 12000 kB <br>
+I've chosen **0.05** (5%) for the level of significance ($\alpha$).
+<br>
+<br>
+**c)** <br>
+Since MaximumMainMemory is an **independent column**, I will use the **independent t-test**. <br>
+Since our data set consists of independent samples, I've chose the independent t-test.
+<br>
+<br>
+**d)** <br>
+Now I'll apply **normality test** for the MaximumMainMemory column.
+```{r}
+shapiro.test(data$MaximumMainMemory)
+```
+According to the normality test result, the **p-value is less than 0.05**. In short, I understand that the data **does not** have a normal distribution here.
+<br>
+<br>
+**e)** <br>
+I will apply **Wilcoxon Rank-Sum Test**. Because, the normality assumption is not satisfied.
+```{r}
+wilcox_test <- wilcox.test(data$MaximumMainMemory, mu=12000)
+wilcox_test
+```
+Since p-value is less than alpha (0.05), I **reject H0** (The Null Hypothesis). In this case I found that the mean of MaximumMainMemory column was **different from 12000 kB**.
+<br>
+<br>
+**f)** <br>
+What I was wondering about while applying this test was to test whether the average of the data in the maximum main memory column was 12000 kB. I have applied some statistical tests on the data and concluded that the mean of the maximum main memory is not significantly different from 12000 kB.
+<br>
+<br>
+**g)** <br>
+A Type-1 error is **mistakenly rejecting** the mean of the MaximumMainMemory and concluding that there is a difference in the mean, when in reality the MaximumMainMemory average is 12000 kB. <br>
+Type-2 error is concluding that there is **no difference** in the mean as a result of the test, although in reality the mean of the MaximumMainMemory is different from 12000 kB. That is, not observing a difference that actually exists and mistakenly concluding that there is no difference in the mean.
+<br>
+<br>
+
+## 7. ANOVA and Tukey Test
+**a. Aim** <br>
+In words, what is your objective here?
+<br>
+**b. Hypothesis and level of significance:** <br>
+Choose more than 2 (≥3) groups to compare! Write your hypothesis in scientific form and determine the level of significance.
+<br>
+**c. Assumption Check:** <br>
+Check the required assumptions statistically.
+<br>
+**d. Result of ANOVA:** <br>
+Give the output of the test and then write down the result.
+<br>
+**e. Conclusion of ANOVA:**
+You got your result in item d. Write down the conclusion of your result, in such a way that, the reader who doesn’t know any statistics can understand your findings.
+<br>
+**f. Result of Tukey:** <br>
+Give the output of the test and write down the result.
+<br>
+**g. Conclusion of Tukey:** <br>
+You got your result in item f. Write down the conclusion of your result, in such a way that, the reader who doesn’t know any statistics can understand your findings.
+<br>
+<br>
+
+**a)** <br>
+My aim is to **compare** the published performances of different CPU manufacturers using ANOVA and Tukey Test.
+<br>
+<br>
+**b)** <br>
+I'll compare some manufacturers' published performances. These manufacturers are **SIEMENS**, **HONEYWELL** and **NCR**. <br>
+H0 (The Null Hypothesis): $\mu$_siemens = $\mu$_honeywell = $\mu$_ncr <br>
+H1 (The Alternative Hypothesis): $\mu$_siemens ≠ $\mu$_honeywell ≠ $\mu$_ncr 
+<br>
+<br>
+**c)** <br>
+When checking the assumptions, I must check that the data has a **normal distribution**, is there **homogeneous variance**, and the **observations are independent**. I will conduct appropriate tests for each of these assumptions and interpret the results I obtain. These manufacturers are independent.
+```{r}
+data_siemens <- subset(data, Manufacturer == "SIEMENS")
+data_honeywell <- subset(data, Manufacturer == "HONEYWELL")
+data_ncr <- subset(data, Manufacturer == "NCR")
+
+shapiro_test_siemens <- shapiro.test(data_siemens$PublishedPerformance)
+shapiro_test_honeywell <- shapiro.test(data_honeywell$PublishedPerformance)
+shapiro_test_ncr <- shapiro.test(data_ncr$PublishedPerformance)
+shapiro_test_results <- c(shapiro_test_siemens$p.value, shapiro_test_honeywell$p.value, shapiro_test_ncr$p.value)
+
+if (all(shapiro_test_results > 0.05)) {
+  "All of the populations have normal distribution"
+} else {
+  "All of the populations have not normal distribution"
+}
+```
+This output means that some of population members **have not normal distribution**. <br>
+Now I'll apply Levene Test to see variances of populations.
+```{r}
+library(car)
+levene_test_results <- leveneTest(PublishedPerformance ~ Manufacturer, data = rbind(data_siemens, data_honeywell, data_ncr))
+levene_test_results
+```
+As you can see p-value is equal to **0.079**, so it is greater than alpha (0.05). As a result, it can be said that the **variances are homogeneous**.
+<br>
+<br>
+**d)** <br>
+I'll apply ANOVA Test now. <br>
+I've chosen the alpha (level of significance) as 0.05.
+```{r}
+anova_result <- aov(PublishedPerformance ~ Manufacturer, data = rbind(data_siemens, data_honeywell, data_ncr))
+summary(anova_result)
+```
+P-value of ANOVA test is **0.127**, so that is greater than alpha (0.05). **H0** (The Null Hypothesis) **can not be rejected**.
+There is **no statistically significant difference** in PublishedPerformance values between the populations.
+<br>
+<br>
+**e)** <br>
+I applied statistical tests to see and prove how similar mean of the published performance values of three different CPU manufacturers (Siemens, Honeywell and NCR) are. The result of the tests is that there is no significant difference between the published performance values ​​of the manufacturers. That is, the performances of these three manufacturers are statistically similar to each other.
+<br>
+<br>
+**f)** <br>
+Now, let's apply Tukey Test.
+```{r}
+tukey_result <- TukeyHSD(anova_result)
+tukey_result
+```
+When I examined the Tukey Test results, I observed that all the p-values was greater than alpha (0.05) for **all pairs**. That means, **H0** (The Null Hypothesis) **can not be rejected**.
+<br>
+<br>
+**g)** <br>
+I could **not see a significant difference** in the mean of performance values of the 3 manufacturers whose published performances I compared in statistical tests. The results of the previous ANOVA test I applied and the Tukey **tests match**.
+<br>
+<br>
+
+## 8. Multiple Linear Regression
+**a. Aim** <br>
+In words, what is your objective here?.
+<br>
+**b. Variable Selection:** <br>
+Multiple linear regression (MLR) is a statistical technique that uses several explanatory variables to predict the outcome of a response variable. Which ones are your explanatory variables and which one is your response variable?
+<br>
+**c. Regression Equation:** <br>
+Write down the “statistical/mathematical equation” of your regression function using those variables and the parameters.
+<br>
+**d. Hypothesis and level of significance** <br>
+Write your hypothesis in scientific form and determine the level of significance.
+<br>
+**e. Find the Best Model:** <br>
+Use step function and find the best model, describe the reason which makes it the best one.
+<br>
+**f. Assumption Check:** <br>
+Check the required assumptions statistically.
+<br>
+**g. Result** <br>
+Give the output of the best model and write down the result.
+<br>
+**h. Conclusion:** <br>
+You got your result in item f. Write down the conclusion of your result, in such a way that, the reader who doesn’t know any statistics can understand your findings.
+<br>
+<br>
+
+**a)** <br>
+My aim is to predict the cycle time of different CPUs. I will try to improve the prediction accuracy by using various system features for this prediction. As the algorithm, I will use multiple linear regression as in the title of this section.
+<br>
+<br>
+**b)** <br>
+My dependent variable (target to predict) will be CycleTime (ns). I will use the variables MinimumMainMemory (kB), MaximumMainMemory (kB), CacheSize (kB), MinimumNumberOfChannels, MaximumNumberOfChannels, PublishedPerformance as features. The reason why I do not use the EstimatedPerformance column is that the values of both are already very close and to prevent the algorithm from learning a bias from this and reducing the model accuracy.
+<br>
+<br>
+**c)** <br>
+The multiple linear regression formula for this part will be like that: <br>
+$$
+CycleTime=β_0 + β_1×MinimumMainMemory + β_2×MaximumMainMemory + β_3×CacheSize + β_4×MinimumNumberOfChannels + β_5×MaximumNumberOfChannels + β_6×PublishedPerformance + \sum_{i=1}^{k-1} \gamma_i × \text{Manufacturer}_i
+$$
+I have to process my categorical column that named Manufacturer before the creating the model.
+```{r}
+data$Manufacturer <- as.factor(data$Manufacturer)
+mlr_model <- lm(data$CycleTime ~ data$MinimumMainMemory + data$MaximumMainMemory + data$CacheSize + data$MinimumNumberOfChannels + data$MaximumNumberOfChannels + data$PublishedPerformance + data$Manufacturer)
+```
+<br>
+<br>
+**d)** <br>
+I have two hypothesis H0 and H1. <br>
+H0 (The Null Hypothesis): $\beta_0 = \beta_1 = \beta_2 = \beta_3 = \beta_4 = \beta_5 = \beta_6 = ManufacturerCoefs (\gamma_1, ... \gamma_{k-1}) = 0$ <br>
+H1 (The Alternative Hypothesis): At least one $β$ coefficient is **different from zero**, meaning that at least one independent variable has a significant effect on the dependent variable. <br>
+Also, I determined the alpha (level of significance) as **0.05** (5%).
+<br>
+<br>
+**e)** <br>
+I will use the **step function** to find the best model as stated in the question.
+```{r}
+best_mlr_model <- step(mlr_model)
+summary(best_mlr_model)
+```
+The function with lower AIC value is better. Additionally, the Multiple R-Squared value shows that the model with an AIC score of **2228.25** is the best model.
+<br>
+<br>
+**f)** <br>
+Now, I will check the necessary assumptions for the Regression model. These assumptions are linearity, normality and homoscedasticity <br>
+First of all, I'll check the linearity assumption.
+```{r echo=FALSE}
+plot(best_mlr_model$fitted.values, best_mlr_model$residuals, xlab="Fitted Values", ylab="Residuals")
+abline(h = 0, col = "pink", )
+```
+
+I observed an increasing pattern in the upper right corner of the chart. Residuals spread more as fitted values increase. This points to problems with the model's **heteroscedasticity** and **linearity** assumption, meaning that the variance of the errors varies depending on the level of the dependent variable. <br>
+The last assumption to check is normality assumption.
+```{r echo=FALSE}
+qqnorm(best_mlr_model$residuals)
+qqline(best_mlr_model$residuals, col = "pink")
+```
+
+In my opinion, this plot seems like **highly normal**. Because a large data density is located on the line, I think the points that distort the graph are **outliers**. <br>
+<br>
+<br>
+**g)** <br>
+I am writing some of the best multiple linear regression model below along with the model coefficients.
+$$
+CycleTime= 102.5 - 0.014×MinimumMainMemory - 0.009×MaximumMainMemory + 0.41×PublishedPerformance + ...
+$$
+The columns that have the biggest impact on the linear model's decision making and prediction are: **MinimumMainMemory** and **MaximumMainMemory**. In addition, **FOURPHASE** for the categorical column manufacturer column also has a large impact on the model prediction. <br>
+The value of Multiple R-squared (**0.1973**) indicates that the model explains approximately **19%** of the variance in the dependent variable. <br>
+
+The p-value I see from the F-statistic is **less than alpha**, which means that at least one model coefficient has a **strong effect** on the dependent variable. So I can **reject H0** (The Null Hypothesis).
+<br>
+<br>
+**h)** <br>
+I have a data set with various information of many different CPUs. I trained and optimized a machine learning model using the Multiple Linear Regression algorithm. I also applied some statistical tests throughout this process. As a result of tests, I proved that at least one of the columns in the dataset has a **large impact** on the prediction of the CycleTime of a new CPU.
