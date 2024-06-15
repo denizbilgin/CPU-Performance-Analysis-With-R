@@ -1,1 +1,1 @@
-![image](https://github.com/denizbilgin/CPU-Performance-Analysis-With-R/blob/markdown.png)
+![image](https://github.com/denizbilgin/CPU-Performance-Analysis-With-R/blob/main/markdown.png)
